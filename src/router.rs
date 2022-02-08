@@ -1,8 +1,8 @@
 use actix_web::web;
+use crate::handler::{get_blog_article_by_name, get_blog_article_by_id, get_static_image, get_homepage};
 
-use crate::handler::{get_blog_article_by_name, get_blog_article_by_id, get_static_image};
-
-pub fn general_routes(_config: &mut web::ServiceConfig) {
+pub fn general_routes(config: &mut web::ServiceConfig) {
+    config.route("/", web::get().to(get_homepage));
 }
 
 pub fn blog_routes(config: &mut web::ServiceConfig) {

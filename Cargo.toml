@@ -12,11 +12,17 @@ name = "blog_service"
 [dependencies]
 hotwatch = "0.4.6"
 walkdir = "2"
-pulldown-cmark = { version = "0.9.1", default-features = false }
-actix-web = "3.3.2"
-actix-rt = "1.1.1"
-serde = { version = "1.0.123", features = ["derive"] }
+actix-web = "4.0.0-rc.2"
+actix-rt = "2.6.0"
+serde = { version = "1.0.132", features = ["derive"] }
 chrono = { version = "0.4.19", features = ["serde"] }
 dotenv = "0.15.0"
 openssl = { version = "0.10.38", features = ["vendored"] }
+sqlx = { version = "0.5.10", default_features = false, features = [
+    "postgres",
+    "runtime-tokio-rustls",
+    "macros",
+    "chrono"
+]}
+pulldown-cmark = { version = "0.9.1", default-features = false }
 lazy_static = "1.4.0"

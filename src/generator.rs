@@ -37,9 +37,11 @@ fn remove_dir_contents(path: impl AsRef<Path>) -> io::Result<()> {
     Ok(())
 }
 
-fn generate_static_images() {
+fn generate_static_resources() {
     copy_dir_all("./static/images", "./public/images")
         .expect("error when copying static images");
+    fs::copy("./static/404.html", "./public/404.html").unwrap();
+    fs::copy("./static/index.html", "./public/index.html").unwrap();
 }
 
 fn clear_public_folder() {
@@ -76,24 +78,19 @@ fn generate_articles() {
         fs::write(&html_path, final_html_content)
             .expect(format!("error when writing to {}", html_path).as_str());
     }
-
-    fs::copy("./static/404.html", "./public/404.html").unwrap();
 }
 
 fn create_archive() -> String {
-    let posts_path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), POSTS_DIR_NAME);
-    let public_path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), PUBLIC_DIR_NAME);
-    let markdown_files = WalkDir::new(&posts_path).into_iter()
+    let markdown_files: Vec<String> = WalkDir::new("./posts").into_iter()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.path().display().to_string().ends_with(".md"))
-        .map(|entry| entry.path().display().to_string())
-        .collect::<Vec<String>>();
+        .filter_map(|entry| entry.file_name().to_os_string().into_string().ok())
+        .collect();
     let articles = markdown_files.into_iter()
-        .map(|name| format!("{}{}.html", public_path, name.trim_start_matches(&posts_path).trim_end_matches(".md")));
+        .map(|name| format!("/blog/{}", name.trim_end_matches(".md")));
     let archive_links: Vec<String> = articles.into_iter()
-        .map(|filename| {
-            let link = filename.trim_start_matches(&public_path);
-            let title = link.trim_start_matches("/").trim_end_matches(".html");
+        .map(|link| {
+            let title = link.trim_start_matches("/blog/");
             format!(r#"<a href={}>{}</a>"#, link, title)
         }).collect();
     archive_links.join("<br /> \n")
@@ -101,6 +98,6 @@ fn create_archive() -> String {
 
 pub fn generate() {
     clear_public_folder();
-    generate_static_images();
+    generate_static_resources();
     generate_articles();
 }
