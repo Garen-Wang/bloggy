@@ -1,44 +1,27 @@
-#![allow(dead_code)]
 use std::fs;
 
 use actix_web::{web, HttpResponse};
 
-use crate::{state::AppState, generator::PUBLIC_DIR_NAME};
+use crate::state::AppState;
 
-// GET
-pub async fn health_check_handler(
-    _app_state: web::Data<AppState>
-) -> HttpResponse {
-    HttpResponse::Ok().json("1")
-}
-
-// POST
-pub async fn insert_new_course(
-    _app_state: web::Data<AppState>
-) -> HttpResponse {
-    println!("Received new course");
-    HttpResponse::Ok().json("Course added")
-}
-
-// GET
-pub async fn get_course_for_teacher(
+pub async fn get_static_image(
     _app_state: web::Data<AppState>,
-    _params: web::Path<usize>
+    params: web::Path<(String, String)>
 ) -> HttpResponse {
-    HttpResponse::Ok().json("Course not found for teacher".to_string())
-}
-
-// GET
-pub async fn get_course_detail(
-    _app_state: web::Data<AppState>,
-    _params: web::Path<(usize, usize)>
-) -> HttpResponse {
-    HttpResponse::Ok().json("Course not found".to_string())
+    println!("getting static image: {:?}", params);
+    let (article_title , image_filename) = params.0;
+    let image_content = fs::read(format!("./public/images/{}/{}", article_title, image_filename));
+    if let Ok(content) = image_content {
+        let bytes = web::Bytes::from(content);
+        HttpResponse::Ok().content_type("image/jpeg").body(bytes)
+    } else {
+        let a = fs::read_to_string("./public/404.html").unwrap();
+        HttpResponse::Ok().body(a)
+    }
 }
 
 fn find_article_by_name(title: String) -> Option<String> {
-    let public_path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), PUBLIC_DIR_NAME);
-    fs::read_to_string(format!("{}/{}.html", public_path, title)).ok()
+    fs::read_to_string(format!("./public/articles/{}.html", title)).ok()
 }
 
 pub async fn get_blog_article_by_name(
@@ -47,7 +30,7 @@ pub async fn get_blog_article_by_name(
 ) -> HttpResponse {
     let title = params.0;
     let html_content = find_article_by_name(title)
-        .unwrap_or(find_article_by_name("404".into()).unwrap());
+        .unwrap_or(fs::read_to_string("./public/404.html").unwrap());
     HttpResponse::Ok().body(html_content)
 }
 
