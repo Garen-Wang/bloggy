@@ -25,4 +25,10 @@ sqlx = { version = "0.5.10", default_features = false, features = [
     "chrono"
 ]}
 pulldown-cmark = { version = "0.9.1", default-features = false }
+pulldown-cmark-toc = "0.1.1"
 lazy_static = "1.4.0"
+regex = "1"
+handlebars = "4.2.1"
+serde_json = "1.0.78"
+html5ever = "*"
+

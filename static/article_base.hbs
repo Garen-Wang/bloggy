@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="the lazy author has not description on this website.">
+  <meta name="author" content="Garen Wang">
+
+  <link rel="stylesheet" href="/blog/css/style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.2/css/bulma.min.css" />
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"/>
+
+  <script async="" src="/blog/js/main.js"></script>
+
+  <title>{{title}}</title>
+</head>
+
+<body>
+  <div class="container content">
+    <header class="masthead">
+      <div style="position:relative">
+        <h2 class="masthead-title">
+          <a href="/" title="Home">Garen Wang's Blog</a>
+        </h2>
+      </div>
+    </header>
+
+    <div>
+      <aside id="toc-aside" class="">
+        <h2>Table of Contents</h2>
+</aside>
+      <main>
+          <div>
+              <h1>A Freestanding Rust Library</h1>
+              <time class="post-date" datetime="2022-02-09">Feb 9, 2022</time>
+          </div>
+
+          <div>
+            {{{ main_html_content }}}
+          </div>
+
+          <div class="post-footer-support">
+              <h2>Support Me</h2>
+              <p>support me</p>
+          </div>
+          <hr>
+          {{#if comments}}
+          <section>
+              <h2 id="comments">Comments</h2>
+            <script src="https://utteranc.es/client.js"
+                repo="garen-wang/garen-wang.github.io"
+                issue-term="{}"
+                theme="github-light"
+                crossorigin="anonymous"
+                async> 
+            </script>
+          </section>
+          {{/if}}
+      </main>
+    </div>
+
+    <div>
+      <aside class="page-aside-right">
+
+      </aside>
+    </div>
+
+    <footer class="footer">
+      <hr>
+      <small>
+        &copy; <time datetime="2022">2022</time>. All rights reserved.
+      </small>
+    </footer>
+  </div>
+
+</body>

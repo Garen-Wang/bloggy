@@ -41,21 +41,55 @@ pub async fn get_blog_article_by_name(
     HttpResponse::Ok().body(html_content)
 }
 
-// TODO: GET handler
-pub async fn get_blog_article_by_id(
-    _app_state: web::Data<AppState>,
-    params: web::Path<(usize,)>
-) -> HttpResponse {
-    println!("[GET] get_blog_article_by_id: {:?}", params);
-    HttpResponse::Ok().json("unimplemented")
-}
-
 // GET handler
-pub async fn get_homepage(
+pub async fn get_main_homepage(
     _app_state: web::Data<AppState>,
 ) -> HttpResponse {
-    println!("[GET] get_homepage");
+    println!("[GET] get_main_homepage");
     HttpResponse::Ok().body(
         fs::read_to_string("./public/index.html").unwrap()
+    )
+}
+
+
+pub async fn get_blog_homepage(
+    _app_state: web::Data<AppState>,
+) -> HttpResponse {
+    println!("[GET] get_blog_homepage");
+    HttpResponse::Ok().body(
+        fs::read_to_string("./public/index.html").unwrap()
+    )
+}
+
+pub async fn get_blog_archives(
+    _app_state: web::Data<AppState>,
+) -> HttpResponse {
+    println!("[GET] get_blog_archive");
+    HttpResponse::Ok().body(
+        fs::read_to_string("./public/archives.html").unwrap()
+    )
+}
+
+pub async fn get_static_css(
+    _app_state: web::Data<AppState>,
+    params: web::Path<(String, )>
+) -> HttpResponse {
+    println!("[GET] get_static_css");
+    HttpResponse::Ok()
+        .content_type("text/css")
+        .body(
+        fs::read_to_string(format!("./public/css/{}", params.0)).unwrap()
+    )
+}
+
+pub async fn get_static_js(
+    _app_state: web::Data<AppState>,
+    params: web::Path<(String, )>
+) -> HttpResponse {
+    println!("[GET] get_static_js");
+    HttpResponse::Ok()
+        .content_type("text/javascript")
+        .body(
+        fs::read_to_string(format!("./public/js/{}", params.0)).unwrap()
     )
 }
