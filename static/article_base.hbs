@@ -9,7 +9,6 @@
   <meta name="author" content="Garen Wang">
 
   <link rel="stylesheet" href="/blog/css/style.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.2/css/bulma.min.css" />
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"/>
 
   <script async="" src="/blog/js/main.js"></script>
@@ -28,9 +27,12 @@
     </header>
 
     <div>
+      {{#if toc}}
       <aside id="toc-aside" class="">
         <h2>Table of Contents</h2>
-</aside>
+        {{{ toc }}}
+      </aside>
+      {{/if}}
       <main>
           <div>
               <h1>A Freestanding Rust Library</h1>
@@ -49,13 +51,15 @@
           {{#if comments}}
           <section>
               <h2 id="comments">Comments</h2>
-            <script src="https://utteranc.es/client.js"
-                repo="garen-wang/garen-wang.github.io"
-                issue-term="{}"
-                theme="github-light"
-                crossorigin="anonymous"
-                async> 
+              <div>
+                <script src="https://utteranc.es/client.js"
+                    repo="garen-wang/garen-wang.github.io"
+                    issue-term="{}"
+                    theme="github-light"
+                    crossorigin="anonymous"
+                    async> 
             </script>
+              </div>
           </section>
           {{/if}}
       </main>

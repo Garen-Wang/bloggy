@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::{fs, path::Path, io::{self, BufRead}, borrow::Cow, error::Error};
+use std::{fs, path::Path, io::{self, BufRead}, borrow::Cow};
 use regex::Regex;
 use walkdir::{WalkDir, DirEntry};
 use lazy_static::lazy_static;
@@ -8,10 +8,8 @@ use crate::template::{render_article_from_markdown, render_archives};
 
 mod template;
 
-// pub const POSTS_DIR_NAME: &str = "posts";
-// pub const PUBLIC_DIR_NAME: &str = "public";
-// pub const STATIC_DIR_NAME: &str = "static";
-
+/// for compatibility of the previous posts
+/// {% qnimg path/to %} => <img src="/blog/image/path/to" />
 fn replace_qiniu_to_link(text: &str) -> Cow<str> {
     lazy_static! {
         static ref RE: Regex = Regex::new(r#"\{%\s*qnimg\s*(?P<path>.*?)\s*%\}"#).unwrap();
@@ -19,6 +17,7 @@ fn replace_qiniu_to_link(text: &str) -> Cow<str> {
     RE.replace_all(text, r#"<img src="/blog/image/$path" />"#)
 }
 
+/// copy the directory recursively
 fn copy_dir_all(src: impl AsRef<Path>, dest: impl AsRef<Path>) -> io::Result<()> {
     fs::create_dir_all(&dest).unwrap();
     for entry in fs::read_dir(&src)? {
@@ -35,6 +34,7 @@ fn copy_dir_all(src: impl AsRef<Path>, dest: impl AsRef<Path>) -> io::Result<()>
     Ok(())
 }
 
+/// remove all files, but not removes all directories
 fn remove_dir_contents(path: impl AsRef<Path>) -> io::Result<()> {
     for entry in fs::read_dir(path)? {
         let entry = entry?;
@@ -42,31 +42,36 @@ fn remove_dir_contents(path: impl AsRef<Path>) -> io::Result<()> {
         if file_type.is_file() {
             fs::remove_file(entry.path())?;
         } else if file_type.is_dir() {
-            // fs::remove_dir_all(entry.path())?;
             remove_dir_contents(entry.path())?;
+            // fs::remove_dir_all(entry.path())?;
         }
     }
     Ok(())
 }
 
-fn generate_static_resources() {
-    copy_dir_all("./static/images", "./public/images")
-        .expect("error when copying static images");
-    // TODO: bad implementation
-    fs::copy("./static/index_base.hbs", "./public/index.html").unwrap();
-    fs::copy("./static/404.html", "./public/404.html").unwrap();
-    fs::create_dir_all("./public/css").unwrap();
-    copy_dir_all("./static/css", "./public/css").unwrap();
-    copy_dir_all("./static/js", "./public/js").unwrap();
-    // fs::copy("./static/index.html", "./public/index.html").unwrap();
+/// copy static resources to `public`
+/// TODO: still buggy
+fn generate_static_resources() -> io::Result<()> {
+    // fs::copy("./static/index_base.hbs", "./public/index.html").unwrap(); // TODO: bug
+    fs::copy("./static/404.html", "./public/404.html")?; // TODO: bug
+    fs::copy("./static/index.html", "./public/index.html")?; // TODO: bug
+
+    // copy images, js, css respectively
+    copy_dir_all("./static/images", "./public/images")?;
+
+    fs::create_dir_all("./public/css")?;
+    copy_dir_all("./static/css", "./public/css")?;
+
+    copy_dir_all("./static/js", "./public/js")?;
+    Ok(())
 }
 
-fn clear_public_folder() {
+/// must be used initially
+fn clear_public_folder() -> io::Result<()> {
     remove_dir_contents("./public")
-        .expect("error when removing folder public");
 }
 
-fn read_article_from_file(dir_entry: &DirEntry) -> Result<(ArticleConfig, String), Box<dyn Error>> {
+fn read_article_from_file(dir_entry: &DirEntry) -> io::Result<(ArticleConfig, String)> {
     let mut article_config = ArticleConfig::new();
     let read_content = fs::read(dir_entry.path()).unwrap();
     let real_content = match read_content.lines().filter_map(|s| s.ok()).take(1).next().unwrap().trim() {
@@ -86,16 +91,15 @@ fn read_article_from_file(dir_entry: &DirEntry) -> Result<(ArticleConfig, String
     Ok((article_config, real_content.to_string()))
 }
 
-fn generate_articles() {
+fn generate_articles() -> io::Result<()> {
     let markdown_files = WalkDir::new("./posts").into_iter()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.file_type().is_file())
         .collect::<Vec<DirEntry>>();
 
-    fs::create_dir_all("./public/articles")
-        .expect("error when creating folder articles");
+    fs::create_dir_all("./public/articles")?;
     for dir_entry in markdown_files { 
-        let (article_config, real_content) = read_article_from_file(&dir_entry).unwrap();
+        let (article_config, real_content) = read_article_from_file(&dir_entry)?;
         let final_html_content = render_article_from_markdown(article_config, &real_content);
         // let html_content = render_html_from_markdown(&real_content);
         let html_path = format!("./public/articles/{}.html", dir_entry.file_name().to_str().unwrap().trim_end_matches(".md"));
@@ -105,9 +109,9 @@ fn generate_articles() {
             // template::render_html_head(&article_config.title),
             // template::render_html_body(&html_content)
         // );
-        fs::write(&html_path, final_html_content)
-            .expect(format!("error when writing to {}", html_path).as_str());
+        fs::write(&html_path, final_html_content)?;
     }
+    Ok(())
 }
 
 fn get_config_from_article(filename: &str) -> ArticleConfig {
@@ -144,18 +148,19 @@ fn generate_archives_info() -> Vec<(String, ArticleConfig)> {
     // archive_links.join("<br /> \n")
 }
 
-fn generate_archives() {
+fn generate_archives() -> io::Result<()> {
     let html_path = "./public/archives.html";
     let final_html_content = render_archives("Garen Wang's Archives", generate_archives_info());
-    fs::write(html_path, final_html_content)
-        .expect(format!("error when writing to {}", html_path).as_str());
+    fs::write(html_path, final_html_content)?;
+    Ok(())
 }
 
-pub fn generate() {
-    clear_public_folder();
-    generate_static_resources();
-    generate_archives();
-    generate_articles();
+pub fn generate() -> io::Result<()> {
+    clear_public_folder()?;
+    generate_static_resources()?;
+    generate_archives()?;
+    generate_articles()?;
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

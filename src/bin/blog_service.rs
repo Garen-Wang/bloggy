@@ -21,7 +21,7 @@ mod generator;
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    generator::generate();
+    generator::generate()?;
     let shared_data = web::Data::new(AppState {
         health_check_response: "I am OK".to_string(),
         vis_count: Mutex::new(0),
