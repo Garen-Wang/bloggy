@@ -1,5 +1,5 @@
-#![allow(dead_code)]
 use std::{fs, path::Path, io, borrow::Cow};
+use chrono::prelude::*;
 use regex::Regex;
 use walkdir::{WalkDir, DirEntry};
 use lazy_static::lazy_static;
@@ -103,19 +103,6 @@ fn read_article_from_file(dir_entry: &DirEntry) -> io::Result<(ArticleConfig, St
     let article_config = ArticleConfig::from(
         read_content.lines().take(n)
     );
-    // let read_content = fs::read(dir_entry.path()).unwrap();
-    // let real_content = match read_content.lines().filter_map(|s| s.ok()).take(1).next().unwrap().trim() {
-        // "---" => {
-            // article_config = ArticleConfig::from(
-                // read_content.lines().filter_map(|s| s.ok()).take(6)
-            // );
-            // read_content.lines().
-                // filter_map(|s| s.ok())
-                // .skip(6).collect::<Vec<String>>()
-                // .join("\n")
-        // },
-        // _ => String::from_utf8(read_content).unwrap()
-    // };
     // modify markdown file here
     let real_content = replace_qiniu_to_link(&real_content);
     Ok((article_config, real_content.to_string()))
@@ -213,7 +200,7 @@ pub fn generate() -> io::Result<()> {
 pub struct ArticleConfig {
     pub title: String,
     pub mathjax: bool,
-    pub date: String,
+    pub date: DateTime<Utc>,
     pub tags: Vec<String>,
 }
 
@@ -222,49 +209,23 @@ impl ArticleConfig {
         ArticleConfig {
             title: "".into(),
             mathjax: false,
-            date: chrono::Utc::now().to_string(),
+            date: chrono::Utc::now(),
             tags: vec![],
         }
     }
 }
 
-/*
- * impl<'a, T> From<T> for ArticleConfig where T: Iterator<Item = &'a str> {
- *     fn from(iterator: T) -> Self {
- *         let mut title: String = "".into();
- *         let mut mathjax: bool = false;
- *         let mut date: String = "".into();
- *         let mut tags: Vec<String> = vec![];
- * 
- *         for line in iterator {
- *             if line.starts_with("title:") {
- *                 title = line.trim_start_matches("title:").trim().to_string();
- *             } else if line.starts_with("mathjax:") {
- *                 let a = line.trim_start_matches("mathjax:").trim();
- *                 mathjax = match a {
- *                     "true" => true,
- *                     "false" => false,
- *                     _ => false,
- *                 };
- *             } else if line.starts_with("date:") {
- *                 let a = line.trim_start_matches("date:").trim();
- *                 date = a.to_string();
- *             } else if line.starts_with("tags:") {
- *                 let a = line.trim_start_matches("tags:").trim();
- *                 let v: Vec<String> = a.split(",").map(|x| x.trim().to_string()).collect();
- *                 tags = v;
- *             }
- *         }
- *         ArticleConfig { title, mathjax, date, tags }
- *     }
- * }
- */
+impl Default for ArticleConfig {
+    fn default() -> Self {
+        ArticleConfig::new()
+    }
+}
 
 impl<'a, T> From<T> for ArticleConfig where T: Iterator<Item = &'a str> {
     fn from(iterator: T) -> Self {
         let mut title: String = "".into();
         let mut mathjax: bool = false;
-        let mut date: String = "".into();
+        let mut date: DateTime<Utc> = chrono::Utc::now();
         let mut tags: Vec<String> = vec![];
 
         for line in iterator {
@@ -279,7 +240,7 @@ impl<'a, T> From<T> for ArticleConfig where T: Iterator<Item = &'a str> {
                 };
             } else if line.starts_with("date:") {
                 let a = line.trim_start_matches("date:").trim();
-                date = a.to_string();
+                date = Utc.datetime_from_str(a, "%Y-%m-%d %H:%M:%S").unwrap();
             } else if line.starts_with("tags:") {
                 let a = line.trim_start_matches("tags:").trim();
                 let v: Vec<String> = a.split(",").map(|x| x.trim().to_string()).collect();
@@ -309,7 +270,7 @@ mod tests {
         assert_eq!(article_config, ArticleConfig {
             title: "test".into(),
             mathjax: true,
-            date: "2022-01-17 11:45:32".into(),
+            date: Utc.datetime_from_str("2022-01-17 11:45:32", "%Y-%m-%d %H:%M:%S").unwrap(),
             tags: vec!["CSAPP".to_string()],
         });
     }

@@ -2,6 +2,7 @@
 use std::fs;
 use serde::{Serialize, Deserialize};
 use serde_json::json;
+use chrono::prelude::*;
 
 use crate::generator::{ArticleConfig, generate_index_item_info};
 
@@ -31,8 +32,8 @@ pub fn render_article_from_markdown(article_config: ArticleConfig, real_content:
         &article_config.title,
         &render_html_from_markdown(real_content),
         true,
-        &render_toc_html_from_markdown(real_content),
-        &article_config.date,
+        Some(&render_toc_html_from_markdown(real_content)),
+        Some(article_config.date),
     )
 }
 
@@ -45,8 +46,8 @@ pub fn render_archives(title: &str, filenames: Vec<(String, ArticleConfig)>) -> 
         title,
         &archive_links.join("<br> \n"),
         false,
-        "",
-        "",
+        None,
+        None,
     )
 }
 
@@ -54,22 +55,17 @@ fn render_final_article_html(
     title: &str,
     main_html_content: &str,
     comments: bool,
-    toc: &str,
-    datetime: &str,
+    toc: Option<&str>,
+    datetime: Option<DateTime<Utc>>,
     // _pathname: &str,
 ) -> String {
-    // format!(
-        // "{}\n{}",
-        // render_html_head(title),
-        // render_html_body(title, article_content, comments)
-    // )
     let reg = handlebars::Handlebars::new();
     let params = json!({
         "title": title,
         "main_html_content": main_html_content,
         "comments": comments,
         "toc": toc,
-        "datetime": datetime,
+        "datetime": datetime.and_then(|x| Some(x.to_string())),
     });
     reg.render_template(&fs::read_to_string("./static/article_base.hbs").unwrap(), &params).unwrap()
 }
