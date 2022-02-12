@@ -1,7 +1,8 @@
 use std::sync::Mutex;
 
 use actix_web::{web, App, HttpServer};
-use router::{general_routes, blog_routes};
+use handler::general_handlers::not_found;
+use router::{general_routes, blog_routes, static_routes};
 use state::AppState;
 
 #[path ="../template.rs"]
@@ -31,6 +32,10 @@ async fn main() -> std::io::Result<()> {
             .app_data(shared_data.clone())
             .configure(general_routes)
             .configure(blog_routes)
+            .configure(static_routes)
+            .default_service(
+                web::route().to(not_found)
+            )
     };
     HttpServer::new(factory).bind("127.0.0.1:7878")?.run().await
 }

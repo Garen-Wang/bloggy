@@ -34,13 +34,14 @@ pub fn render_article_from_markdown(article_config: ArticleConfig, real_content:
         true,
         Some(&render_toc_html_from_markdown(real_content)),
         Some(article_config.date),
+        article_config.mathjax,
     )
 }
 
 pub fn render_archives(title: &str, filenames: Vec<(String, ArticleConfig)>) -> String {
     let archive_links: Vec<String> = filenames.into_iter()
         .map(|(filename, config)| {
-            format!(r#"<a href=/blog/{}>{}</a>"#, filename, config.title)
+            format!(r#"<a href={}>{}</a>"#, filename, config.title)
         }).collect();
     render_final_article_html(
         title,
@@ -48,6 +49,7 @@ pub fn render_archives(title: &str, filenames: Vec<(String, ArticleConfig)>) -> 
         false,
         None,
         None,
+        false,
     )
 }
 
@@ -57,7 +59,7 @@ fn render_final_article_html(
     comments: bool,
     toc: Option<&str>,
     datetime: Option<DateTime<Utc>>,
-    // _pathname: &str,
+    mathjax: bool,
 ) -> String {
     let reg = handlebars::Handlebars::new();
     let params = json!({
@@ -66,6 +68,7 @@ fn render_final_article_html(
         "comments": comments,
         "toc": toc,
         "datetime": datetime.and_then(|x| Some(x.to_string())),
+        "mathjax": mathjax,
     });
     reg.render_template(&fs::read_to_string("./static/article_base.hbs").unwrap(), &params).unwrap()
 }
@@ -84,14 +87,6 @@ impl IndexItem {
 
 pub fn render_homepage_html_content() -> String {
     let reg = handlebars::Handlebars::new();
-    
-    // let articles = vec![
-        // IndexItem {
-            // filename: "filename".into(),
-            // title: "title".into(),
-            // heading: "headingheadingheadingheadingheadingheadingheadingheadingheadingheadingheading".into()
-        // },
-    // ];
     let articles = generate_index_item_info().unwrap();
     let params = json!({
         "articles": articles

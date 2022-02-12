@@ -9,12 +9,12 @@ use crate::template::{render_article_from_markdown, render_archives, render_home
 mod template;
 
 /// for compatibility of the previous posts
-/// {% qnimg path/to %} => <img src="/blog/image/path/to" />
+/// {% qnimg path/to %} => <img src="/static/img/path/to" />
 fn replace_qiniu_to_link(text: &str) -> Cow<str> {
     lazy_static! {
         static ref RE: Regex = Regex::new(r#"\{%\s*qnimg\s*(?P<path>.*?)\s*%\}"#).unwrap();
     }
-    RE.replace_all(text, r#"<img src="/blog/image/$path" />"#)
+    RE.replace_all(text, r#"<img src="/static/img/$path" />"#)
 }
 
 /// copy the directory recursively
@@ -54,15 +54,13 @@ fn remove_dir_contents(path: impl AsRef<Path>) -> io::Result<()> {
 fn generate_static_resources() -> io::Result<()> {
     fs::copy("./static/favicon.ico", "./public/favicon.ico")?;
     
-    // fs::copy("./static/index_base.hbs", "./public/index.html").unwrap(); // TODO: bug
-
-    // fs::copy("./static/404.html", "./public/404.html")?; // TODO: bug
-    let entry = WalkDir::new("./static/404.md").into_iter().take(1).next().unwrap().unwrap();
+    // generate 404 webpage from markdown file
+    let entry = WalkDir::new("./posts/special/404.md").into_iter().take(1).next().unwrap().unwrap();
     let (article_config, real_content) = read_article_from_file(&entry)?;
     let a = render_article_from_markdown(article_config, &real_content);
     fs::write("./public/404.html", a)?;
 
-    // fs::copy("./static/index.html", "./public/index.html")?; // TODO: bug
+    // render index webpage dynamically
     fs::write("./public/index.html", render_homepage_html_content())?;
 
     // copy images, js, css respectively
@@ -80,8 +78,9 @@ fn clear_public_folder() -> io::Result<()> {
     remove_dir_contents("./public")
 }
 
+/// return the index that splits the config at first few lines
+/// if the content is invalid, return Err (but error content does not matter)
 fn split_config_from_markdown(read_content: &str) -> io::Result<usize> {
-    // let read_content = fs::read_to_string("./posts/test.md").unwrap();
     let lines = read_content.lines();
     let mut cnt = 0;
     for (idx, line) in lines.enumerate() {
@@ -95,7 +94,8 @@ fn split_config_from_markdown(read_content: &str) -> io::Result<usize> {
     Err(io::Error::new(io::ErrorKind::Other, "invalid markdown"))
 }
 
-
+/// read the article by passing a *walkdir::DirEntry*
+/// return the parsed result of article config and the main body
 fn read_article_from_file(dir_entry: &DirEntry) -> io::Result<(ArticleConfig, String)> {
     let read_content = fs::read_to_string(dir_entry.path())?;
     let n = split_config_from_markdown(&read_content)?;
@@ -103,11 +103,12 @@ fn read_article_from_file(dir_entry: &DirEntry) -> io::Result<(ArticleConfig, St
     let article_config = ArticleConfig::from(
         read_content.lines().take(n)
     );
-    // modify markdown file here
+    // some replacement in order to make previous posts compatible 
     let real_content = replace_qiniu_to_link(&real_content);
     Ok((article_config, real_content.to_string()))
 }
 
+/// generate all articles in blog and save to `public` folder
 fn generate_articles() -> io::Result<()> {
     let markdown_files = WalkDir::new("./posts").into_iter()
         .filter_map(|entry| entry.ok())
@@ -117,15 +118,12 @@ fn generate_articles() -> io::Result<()> {
     fs::create_dir_all("./public/articles")?;
     for dir_entry in markdown_files { 
         let (article_config, real_content) = read_article_from_file(&dir_entry)?;
+        if !article_config.visible {
+            continue;
+        }
         let final_html_content = render_article_from_markdown(article_config, &real_content);
         // let html_content = render_html_from_markdown(&real_content);
         let html_path = format!("./public/articles/{}.html", dir_entry.file_name().to_str().unwrap().trim_end_matches(".md"));
-        // let final_html_content = render_final_html_content(&article_config.title, &html_content, true);
-        // let final_html_content = format!(
-            // "{}\n{}", 
-            // template::render_html_head(&article_config.title),
-            // template::render_html_body(&html_content)
-        // );
         fs::write(&html_path, final_html_content)?;
     }
     Ok(())
@@ -145,6 +143,9 @@ pub fn generate_index_item_info() -> io::Result<Vec<IndexItem>> {
     let mut ans = vec![];
     for dir_entry in dir_entries {
         let (article_config, real_content) = read_article_from_file(&dir_entry)?;
+        if !article_config.visible {
+            continue;
+        }
         let filename = dir_entry.file_name().to_str().unwrap().trim_end_matches(".md");
         let heading = generate_heading_of_index_item(&real_content);
         ans.push(IndexItem::new(filename.to_string(), article_config.title, heading));
@@ -160,25 +161,13 @@ fn generate_archives_info() -> io::Result<Vec<(String, ArticleConfig)>> {
     let mut ans = vec![];
     for dir_entry in dir_entries {
         let (article_config, _) = read_article_from_file(&dir_entry)?;
+        if !article_config.visible {
+            continue;
+        }
         let filename = dir_entry.file_name().to_str().unwrap().trim_end_matches(".md");
         ans.push((filename.to_string(), article_config));
     }
     Ok(ans)
-    // let (article_config, _) = read_article_from_file(dir_entry)
-    // markdown_files.into_iter()
-        // .map(|filename| (
-            // filename.trim_end_matches(".md").to_owned(),
-            // get_config_from_article(&filename)
-        // ))
-        // .collect()
-    // let articles = markdown_files.into_iter()
-    //     .map(|name| format!("/blog/{}", name.trim_end_matches(".md")));
-    // let archive_links: Vec<String> = articles.into_iter()
-    //     .map(|link| {
-    //         let title = link.trim_start_matches("/blog/");
-    //         format!(r#"<a href={}>{}</a>"#, link, title)
-    //     }).collect();
-    // archive_links.join("<br /> \n")
 }
 
 fn generate_archives() -> io::Result<()> {
@@ -188,6 +177,7 @@ fn generate_archives() -> io::Result<()> {
     Ok(())
 }
 
+/// main function of generator
 pub fn generate() -> io::Result<()> {
     clear_public_folder()?;
     generate_static_resources()?;
@@ -202,6 +192,7 @@ pub struct ArticleConfig {
     pub mathjax: bool,
     pub date: DateTime<Utc>,
     pub tags: Vec<String>,
+    pub visible: bool,
 }
 
 impl ArticleConfig {
@@ -211,6 +202,7 @@ impl ArticleConfig {
             mathjax: false,
             date: chrono::Utc::now(),
             tags: vec![],
+            visible: true,
         }
     }
 }
@@ -227,6 +219,7 @@ impl<'a, T> From<T> for ArticleConfig where T: Iterator<Item = &'a str> {
         let mut mathjax: bool = false;
         let mut date: DateTime<Utc> = chrono::Utc::now();
         let mut tags: Vec<String> = vec![];
+        let mut visible: bool = true;
 
         for line in iterator {
             if line.starts_with("title:") {
@@ -245,9 +238,16 @@ impl<'a, T> From<T> for ArticleConfig where T: Iterator<Item = &'a str> {
                 let a = line.trim_start_matches("tags:").trim();
                 let v: Vec<String> = a.split(",").map(|x| x.trim().to_string()).collect();
                 tags = v;
+            } else if line.starts_with("visible:") {
+                let a = line.trim_start_matches("visible:").trim();
+                visible = match a {
+                    "true" => true,
+                    "false" => false,
+                    _ => false
+                };
             }
         }
-        ArticleConfig { title, mathjax, date, tags }
+        ArticleConfig { title, mathjax, date, tags, visible }
     }
 }
 
@@ -272,6 +272,7 @@ mod tests {
             mathjax: true,
             date: Utc.datetime_from_str("2022-01-17 11:45:32", "%Y-%m-%d %H:%M:%S").unwrap(),
             tags: vec!["CSAPP".to_string()],
+            visible: true,
         });
     }
 
