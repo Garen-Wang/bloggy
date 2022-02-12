@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 use std::fs;
+use serde::{Serialize, Deserialize};
 use serde_json::json;
 
-use crate::generator::ArticleConfig;
+use crate::generator::{ArticleConfig, generate_index_item_info};
 
 fn render_html_from_markdown(real_content: &str) -> String {
     let mut options = pulldown_cmark::Options::empty();
@@ -26,11 +27,12 @@ fn render_toc_html_from_markdown(real_content: &str) -> String {
 }
 
 pub fn render_article_from_markdown(article_config: ArticleConfig, real_content: &str) -> String {
-    render_final_html_content(
+    render_final_article_html(
         &article_config.title,
         &render_html_from_markdown(real_content),
         true,
-        &render_toc_html_from_markdown(real_content)
+        &render_toc_html_from_markdown(real_content),
+        &article_config.date,
     )
 }
 
@@ -39,20 +41,21 @@ pub fn render_archives(title: &str, filenames: Vec<(String, ArticleConfig)>) -> 
         .map(|(filename, config)| {
             format!(r#"<a href=/blog/{}>{}</a>"#, filename, config.title)
         }).collect();
-    render_final_html_content(
+    render_final_article_html(
         title,
         &archive_links.join("<br> \n"),
         false,
-        ""
+        "",
+        "",
     )
 }
 
-fn render_final_html_content(
+fn render_final_article_html(
     title: &str,
     main_html_content: &str,
     comments: bool,
     toc: &str,
-    // _date: &str,
+    datetime: &str,
     // _pathname: &str,
 ) -> String {
     // format!(
@@ -66,17 +69,38 @@ fn render_final_html_content(
         "main_html_content": main_html_content,
         "comments": comments,
         "toc": toc,
+        "datetime": datetime,
     });
     reg.render_template(&fs::read_to_string("./static/article_base.hbs").unwrap(), &params).unwrap()
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IndexItem {
+    filename: String,
+    title: String,
+    heading: String,
+}
+
+impl IndexItem {
+    pub fn new(filename: String, title: String, heading: String) -> Self { IndexItem { filename, title, heading }
+    }
+}
+
 pub fn render_homepage_html_content() -> String {
-    // let reg = handlebars::Handlebars::new();
-    fs::read_to_string("./static/index_base.hbs").unwrap()
+    let reg = handlebars::Handlebars::new();
+    
+    // let articles = vec![
+        // IndexItem {
+            // filename: "filename".into(),
+            // title: "title".into(),
+            // heading: "headingheadingheadingheadingheadingheadingheadingheadingheadingheadingheading".into()
+        // },
+    // ];
+    let articles = generate_index_item_info().unwrap();
+    let params = json!({
+        "articles": articles
+    });
+    reg.render_template(&fs::read_to_string("./static/index_base.hbs").unwrap(), &params).unwrap()
+    // fs::read_to_string("./static/index_base.hbs").unwrap()
 }
 
-#[cfg(test)]
-mod tests {
-    // use super::*;
-
-}

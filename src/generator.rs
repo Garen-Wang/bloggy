@@ -1,10 +1,10 @@
 #![allow(dead_code)]
-use std::{fs, path::Path, io::{self, BufRead}, borrow::Cow};
+use std::{fs, path::Path, io, borrow::Cow};
 use regex::Regex;
 use walkdir::{WalkDir, DirEntry};
 use lazy_static::lazy_static;
 
-use crate::template::{render_article_from_markdown, render_archives};
+use crate::template::{render_article_from_markdown, render_archives, render_homepage_html_content, IndexItem};
 
 mod template;
 
@@ -52,9 +52,18 @@ fn remove_dir_contents(path: impl AsRef<Path>) -> io::Result<()> {
 /// copy static resources to `public`
 /// TODO: still buggy
 fn generate_static_resources() -> io::Result<()> {
+    fs::copy("./static/favicon.ico", "./public/favicon.ico")?;
+    
     // fs::copy("./static/index_base.hbs", "./public/index.html").unwrap(); // TODO: bug
-    fs::copy("./static/404.html", "./public/404.html")?; // TODO: bug
-    fs::copy("./static/index.html", "./public/index.html")?; // TODO: bug
+
+    // fs::copy("./static/404.html", "./public/404.html")?; // TODO: bug
+    let entry = WalkDir::new("./static/404.md").into_iter().take(1).next().unwrap().unwrap();
+    let (article_config, real_content) = read_article_from_file(&entry)?;
+    let a = render_article_from_markdown(article_config, &real_content);
+    fs::write("./public/404.html", a)?;
+
+    // fs::copy("./static/index.html", "./public/index.html")?; // TODO: bug
+    fs::write("./public/index.html", render_homepage_html_content())?;
 
     // copy images, js, css respectively
     copy_dir_all("./static/images", "./public/images")?;
@@ -71,21 +80,42 @@ fn clear_public_folder() -> io::Result<()> {
     remove_dir_contents("./public")
 }
 
+fn split_config_from_markdown(read_content: &str) -> io::Result<usize> {
+    // let read_content = fs::read_to_string("./posts/test.md").unwrap();
+    let lines = read_content.lines();
+    let mut cnt = 0;
+    for (idx, line) in lines.enumerate() {
+        if line.trim() == "---" {
+            cnt += 1;
+            if cnt == 2 {
+                return Ok(idx + 1);
+            }
+        }
+    }
+    Err(io::Error::new(io::ErrorKind::Other, "invalid markdown"))
+}
+
+
 fn read_article_from_file(dir_entry: &DirEntry) -> io::Result<(ArticleConfig, String)> {
-    let mut article_config = ArticleConfig::new();
-    let read_content = fs::read(dir_entry.path()).unwrap();
-    let real_content = match read_content.lines().filter_map(|s| s.ok()).take(1).next().unwrap().trim() {
-        "---" => {
-            article_config = ArticleConfig::from(
-                read_content.lines().filter_map(|s| s.ok()).take(6)
-            );
-            read_content.lines().
-                filter_map(|s| s.ok())
-                .skip(6).collect::<Vec<String>>()
-                .join("\n")
-        },
-        _ => String::from_utf8(read_content).unwrap()
-    };
+    let read_content = fs::read_to_string(dir_entry.path())?;
+    let n = split_config_from_markdown(&read_content)?;
+    let real_content = read_content.lines().skip(n).collect::<Vec<&str>>().join("\n");
+    let article_config = ArticleConfig::from(
+        read_content.lines().take(n)
+    );
+    // let read_content = fs::read(dir_entry.path()).unwrap();
+    // let real_content = match read_content.lines().filter_map(|s| s.ok()).take(1).next().unwrap().trim() {
+        // "---" => {
+            // article_config = ArticleConfig::from(
+                // read_content.lines().filter_map(|s| s.ok()).take(6)
+            // );
+            // read_content.lines().
+                // filter_map(|s| s.ok())
+                // .skip(6).collect::<Vec<String>>()
+                // .join("\n")
+        // },
+        // _ => String::from_utf8(read_content).unwrap()
+    // };
     // modify markdown file here
     let real_content = replace_qiniu_to_link(&real_content);
     Ok((article_config, real_content.to_string()))
@@ -114,30 +144,46 @@ fn generate_articles() -> io::Result<()> {
     Ok(())
 }
 
-fn get_config_from_article(filename: &str) -> ArticleConfig {
-    let path = format!("./posts/{}", filename);
-    let read_content = fs::read(path).unwrap();
-    if read_content.lines().filter_map(|s| s.ok()).take(1).next().unwrap().trim() == "---" {
-        ArticleConfig::from(
-            read_content.lines().filter_map(|s| s.ok()).take(6)
-        )
-    } else {
-        ArticleConfig::new()
-    }
+// TODO: remove all punctuations, generate readable headings
+fn generate_heading_of_index_item(real_content: &str) -> String {
+    real_content.chars().take(100).collect()
 }
 
-fn generate_archives_info() -> Vec<(String, ArticleConfig)> {
-    let markdown_files: Vec<String> = WalkDir::new("./posts").into_iter()
+pub fn generate_index_item_info() -> io::Result<Vec<IndexItem>> {
+    // filename, title, heading
+    let dir_entries : Vec<DirEntry> = WalkDir::new("./posts").into_iter()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.path().display().to_string().ends_with(".md"))
-        .filter_map(|entry| entry.file_name().to_os_string().into_string().ok())
         .collect();
-    markdown_files.into_iter()
-        .map(|filename| (
-            filename.trim_end_matches(".md").to_owned(),
-            get_config_from_article(&filename)
-        ))
-        .collect()
+    let mut ans = vec![];
+    for dir_entry in dir_entries {
+        let (article_config, real_content) = read_article_from_file(&dir_entry)?;
+        let filename = dir_entry.file_name().to_str().unwrap().trim_end_matches(".md");
+        let heading = generate_heading_of_index_item(&real_content);
+        ans.push(IndexItem::new(filename.to_string(), article_config.title, heading));
+    }
+    Ok(ans)
+}
+
+fn generate_archives_info() -> io::Result<Vec<(String, ArticleConfig)>> {
+    let dir_entries : Vec<DirEntry> = WalkDir::new("./posts").into_iter()
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().display().to_string().ends_with(".md"))
+        .collect();
+    let mut ans = vec![];
+    for dir_entry in dir_entries {
+        let (article_config, _) = read_article_from_file(&dir_entry)?;
+        let filename = dir_entry.file_name().to_str().unwrap().trim_end_matches(".md");
+        ans.push((filename.to_string(), article_config));
+    }
+    Ok(ans)
+    // let (article_config, _) = read_article_from_file(dir_entry)
+    // markdown_files.into_iter()
+        // .map(|filename| (
+            // filename.trim_end_matches(".md").to_owned(),
+            // get_config_from_article(&filename)
+        // ))
+        // .collect()
     // let articles = markdown_files.into_iter()
     //     .map(|name| format!("/blog/{}", name.trim_end_matches(".md")));
     // let archive_links: Vec<String> = articles.into_iter()
@@ -150,7 +196,7 @@ fn generate_archives_info() -> Vec<(String, ArticleConfig)> {
 
 fn generate_archives() -> io::Result<()> {
     let html_path = "./public/archives.html";
-    let final_html_content = render_archives("Garen Wang's Archives", generate_archives_info());
+    let final_html_content = render_archives("Garen Wang's Archives", generate_archives_info()?);
     fs::write(html_path, final_html_content)?;
     Ok(())
 }
@@ -182,7 +228,39 @@ impl ArticleConfig {
     }
 }
 
-impl<T> From<T> for ArticleConfig where T: Iterator<Item = String> {
+/*
+ * impl<'a, T> From<T> for ArticleConfig where T: Iterator<Item = &'a str> {
+ *     fn from(iterator: T) -> Self {
+ *         let mut title: String = "".into();
+ *         let mut mathjax: bool = false;
+ *         let mut date: String = "".into();
+ *         let mut tags: Vec<String> = vec![];
+ * 
+ *         for line in iterator {
+ *             if line.starts_with("title:") {
+ *                 title = line.trim_start_matches("title:").trim().to_string();
+ *             } else if line.starts_with("mathjax:") {
+ *                 let a = line.trim_start_matches("mathjax:").trim();
+ *                 mathjax = match a {
+ *                     "true" => true,
+ *                     "false" => false,
+ *                     _ => false,
+ *                 };
+ *             } else if line.starts_with("date:") {
+ *                 let a = line.trim_start_matches("date:").trim();
+ *                 date = a.to_string();
+ *             } else if line.starts_with("tags:") {
+ *                 let a = line.trim_start_matches("tags:").trim();
+ *                 let v: Vec<String> = a.split(",").map(|x| x.trim().to_string()).collect();
+ *                 tags = v;
+ *             }
+ *         }
+ *         ArticleConfig { title, mathjax, date, tags }
+ *     }
+ * }
+ */
+
+impl<'a, T> From<T> for ArticleConfig where T: Iterator<Item = &'a str> {
     fn from(iterator: T) -> Self {
         let mut title: String = "".into();
         let mut mathjax: bool = false;
@@ -215,8 +293,6 @@ impl<T> From<T> for ArticleConfig where T: Iterator<Item = String> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::BufRead;
-
     use regex::Regex;
 
     use super::*;
@@ -227,8 +303,8 @@ mod tests {
         // mathjax: true
         // date: 2022-01-17 11:45:32
         // tags: CSAPP
-        let read_content = fs::read("./posts/test.md").unwrap();
-        let header_content = read_content.lines().filter_map(|x| x.ok()).take(6);
+        let read_content = fs::read_to_string("./posts/test.md").unwrap();
+        let header_content = read_content.lines().take(6);
         let article_config = ArticleConfig::from(header_content);
         assert_eq!(article_config, ArticleConfig {
             title: "test".into(),
@@ -236,30 +312,6 @@ mod tests {
             date: "2022-01-17 11:45:32".into(),
             tags: vec!["CSAPP".to_string()],
         });
-    }
-
-    #[test]
-    fn test_read_first_few_lines() {
-        let mut article_config = ArticleConfig::new();
-        let read_content = fs::read("./posts/test.md").unwrap();
-        let real_content = match read_content.lines().filter_map(|s| s.ok()).take(1).next().unwrap().trim() {
-            "---" => {
-                article_config = ArticleConfig::from(
-                    read_content.lines().filter_map(|s| s.ok()).take(6)
-                );
-                read_content.lines().
-                    filter_map(|s| s.ok())
-                    .skip(6).collect::<Vec<String>>()
-                    .join("\n")
-            },
-            _ => String::from_utf8(read_content).unwrap()
-        };
-        // fs::write("./tests/test.md", real_content).unwrap();
-        let title = "test";
-        let html_path = format!("./public/articles/{}.html", title);
-        let final_html_content = render_article_from_markdown(article_config, &real_content);
-        fs::write(&html_path, final_html_content)
-            .expect(format!("error when writing to {}", html_path).as_str());
     }
 
     #[test]
@@ -280,5 +332,22 @@ mod tests {
         let toc = pulldown_cmark_toc::TableOfContents::new(&real_content);
         let res = toc.to_cmark();
         println!("{}", res);
+    }
+
+    #[test]
+    fn test_read_config_from_markdown() {
+        let read_content = fs::read_to_string("./posts/test.md").unwrap();
+        let lines = read_content.lines();
+        let mut cnt = 0;
+        for (idx, line) in lines.enumerate() {
+            if line.trim() == "---" {
+                cnt += 1;
+                if cnt == 2 {
+                    assert_eq!(idx, 5);
+                } else if cnt == 1 {
+                    assert_eq!(idx, 0);
+                }
+            }
+        }
     }
 }

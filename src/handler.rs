@@ -93,3 +93,16 @@ pub async fn get_static_js(
         fs::read_to_string(format!("./public/js/{}", params.0)).unwrap()
     )
 }
+
+pub async fn get_favicon(
+    _app_state: web::Data<AppState>
+) -> HttpResponse {
+    println!("[GET] get_favicon");
+    let image_content = fs::read("./public/favicon.ico");
+    if let Ok(content) = image_content {
+        let bytes = web::Bytes::from(content);
+        HttpResponse::Ok().content_type("image/x-icon").body(bytes)
+    } else {
+        HttpResponse::Ok().body(get_404_error_html_content())
+    }
+}
